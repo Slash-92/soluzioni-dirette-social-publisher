@@ -1,0 +1,53 @@
+name: Notion Buffer sync
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: buffer-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
+      NOTION_DATA_SOURCE_ID: ${{ vars.NOTION_DATA_SOURCE_ID }}
+      BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
+      BUFFER_INSTAGRAM_CHANNEL_ID: ${{ secrets.BUFFER_INSTAGRAM_CHANNEL_ID }}
+      BUFFER_FACEBOOK_CHANNEL_ID: ${{ secrets.BUFFER_FACEBOOK_CHANNEL_ID }}
+      BUFFER_SCHEDULE_HORIZON_DAYS: ${{ vars.BUFFER_SCHEDULE_HORIZON_DAYS || '2' }}
+      PUBLIC_MEDIA_BASE_URL: ${{ vars.PUBLIC_MEDIA_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Test migration and idempotency rules
+        run: node --test automation/notion-sync.test.mjs
+      - name: Sync approved Notion content
+        if: env.NOTION_API_TOKEN != ''
+        run: node automation/notion-sync.mjs
+      - name: Notion integration not configured yet
+        if: env.NOTION_API_TOKEN == ''
+        run: echo "NOTION_API_TOKEN assente; la programmazione Buffer esistente resta invariata."
+      - name: Save media and idempotency state
+        if: always()
+        run: |
+          git add -- automation/notion-sync-state.json
+          if [ -d media/notion ]; then
+            git add -- media/notion
+          fi
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name "instagram-notion-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "Sync approved Notion content"
+          git push

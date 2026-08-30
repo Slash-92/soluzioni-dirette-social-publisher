@@ -1,0 +1,15 @@
+{
+  "name": "soluzioni-dirette-publishing-automation",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test automation/notion-sync.test.mjs",
+    "validate:config": "node automation/notion-sync.mjs --validate-config",
+    "dry-run": "node automation/notion-sync.mjs --dry-run",
+    "sync": "node automation/notion-sync.mjs",
+    "discover:buffer": "node automation/buffer-discover.mjs"
+  }
+}
