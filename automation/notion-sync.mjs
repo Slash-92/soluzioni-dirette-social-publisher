@@ -7,7 +7,7 @@ const NOTION_VERSION = "2026-03-11";
 const BUFFER_API = "https://api.buffer.com";
 const DEFAULT_DATA_SOURCE_ID = "";
 const DEFAULT_MEDIA_BASE = "";
-const DEFAULT_SCHEDULE_HORIZON_DAYS = 2;
+const DEFAULT_SCHEDULE_HORIZON_DAYS = 10;
 const MANAGEABLE_BUFFER_STATUSES = new Set(["sent", "published", "scheduled", "buffer", "sending"]);
 const scriptDir = import.meta.dirname;
 const repoRoot = path.resolve(scriptDir, "..");
@@ -80,6 +80,7 @@ export function parseNotionPage(page) {
     id: page.id,
     url: page.url,
     title: titleValue(properties.Contenuto),
+    brand: properties.Brand?.select?.name ?? "",
     status: properties["Stato pubblicazione"]?.select?.name ?? "",
     ready: properties["Pronto per pubblicazione"]?.checkbox === true
       && properties["Grafica pronta"]?.checkbox === true
@@ -192,7 +193,9 @@ export function requiresMediaCheck(action) {
 }
 
 export function isEligibleSyncPage(page) {
-  return page.ready && ["Da programmare", "Programmato", "Errore"].includes(page.status);
+  return page.brand === "Soluzioni Dirette"
+    && page.ready
+    && ["Da programmare", "Programmato", "Errore"].includes(page.status);
 }
 
 export function shouldDeferCreation(dueAt, now = new Date(), horizonDays = DEFAULT_SCHEDULE_HORIZON_DAYS) {

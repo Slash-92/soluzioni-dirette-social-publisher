@@ -24,6 +24,7 @@ function pageFixture(overrides = {}) {
     url: "https://notion.so/test",
     properties: {
       Contenuto: { type: "title", title: [{ plain_text: "Contenuto test" }] },
+      Brand: { type: "select", select: { name: "Soluzioni Dirette" } },
       "Stato pubblicazione": { type: "select", select: { name: "Da programmare" } },
       "Pronto per pubblicazione": { type: "checkbox", checkbox: true },
       "Grafica pronta": { type: "checkbox", checkbox: true },
@@ -130,4 +131,9 @@ test("una riga già pubblicata non consuma più richieste Buffer", () => {
   const scheduled = parseNotionPage(pageFixture({ "Stato pubblicazione": { type: "select", select: { name: "Programmato" } } }));
   assert.equal(isEligibleSyncPage(published), false);
   assert.equal(isEligibleSyncPage(scheduled), true);
+});
+
+test("una riga di un brand diverso viene sempre ignorata", () => {
+  const codesyn = parseNotionPage(pageFixture({ Brand: { type: "select", select: { name: "Codesyn" } } }));
+  assert.equal(isEligibleSyncPage(codesyn), false);
 });

@@ -12,6 +12,7 @@ programmate come frame separati, distanziati di un minuto.
 
 Un contenuto entra nel flusso solo quando sono vere tutte queste condizioni:
 
+- `Brand` uguale a `Soluzioni Dirette`;
 - `Grafica pronta`, `Caption pronta` e `Pronto per pubblicazione` selezionati;
 - `Stato pubblicazione` uguale a `Da programmare`;
 - data con ora, caption, formato, canali e media presenti;
@@ -20,6 +21,9 @@ Un contenuto entra nel flusso solo quando sono vere tutte queste condizioni:
 Il primo passaggio copia i media da Notion nel repository. Un passaggio
 successivo verifica gli URL pubblici e crea le programmazioni Buffer senza
 duplicati.
+
+Le nuove pubblicazioni vengono create in Buffer soltanto quando entrano nella
+finestra dei 10 giorni precedenti la data prevista.
 
 Non aggiungere credenziali ai file. Le chiavi restano esclusivamente nei GitHub
 Actions Secrets. `.env` è riservato a eventuali test locali ed è escluso da Git.
