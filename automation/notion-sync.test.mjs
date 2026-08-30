@@ -6,6 +6,7 @@ import {
   buildJobs,
   buildOperations,
   configuredChannels,
+  countHashtags,
   decideAction,
   deriveEntryStatus,
   isEligibleSyncPage,
@@ -105,11 +106,27 @@ test("gli ID dei canali Instagram e Facebook devono essere distinti", () => {
 });
 
 test("le Stories diventano operazioni separate a un minuto di distanza", () => {
-  const parsed = parseNotionPage(pageFixture({ Formato: { type: "multi_select", multi_select: [{ name: "Story" }] } }));
+  const parsed = parseNotionPage(pageFixture({
+    Formato: { type: "multi_select", multi_select: [{ name: "Story" }] },
+    Caption: richText("Testo che non deve essere inviato #uno #due #tre #quattro #cinque #sei"),
+  }));
   const jobs = buildJobs(parsed);
   assert.equal(jobs.length, 2);
   assert.equal(Date.parse(jobs[1].dueAt) - Date.parse(jobs[0].dueAt), 60_000);
   assert.equal(jobs[0].caption, "");
+});
+
+test("post, caroselli e Reel richiedono una caption", () => {
+  const parsed = parseNotionPage(pageFixture({ Caption: richText("") }));
+  assert.throws(() => buildJobs(parsed), /caption obbligatoria/);
+});
+
+test("le caption accettano al massimo cinque hashtag", () => {
+  assert.equal(countHashtags("Testo #uno #due #tre #quattro #cinque"), 5);
+  const parsed = parseNotionPage(pageFixture({
+    Caption: richText("Testo #uno #due #tre #quattro #cinque #sei"),
+  }));
+  assert.throws(() => buildJobs(parsed), /massimo 5 hashtag, trovati 6/);
 });
 
 test("un Reel richiede un MP4 e genera un video Buffer", () => {

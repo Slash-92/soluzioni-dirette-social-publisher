@@ -104,12 +104,23 @@ function isVideo(url) {
   return /\.(mp4|mov|m4v)(?:$|\?)/i.test(url);
 }
 
+export function countHashtags(value) {
+  return value.match(/(^|[^\p{L}\p{N}_])#[\p{L}\p{N}_]+/gu)?.length ?? 0;
+}
+
+function validateCaption(page) {
+  if (!page.caption.trim()) throw new Error(`${page.title}: caption obbligatoria per ${page.format}`);
+  const hashtagCount = countHashtags(page.caption);
+  if (hashtagCount > 5) throw new Error(`${page.title}: massimo 5 hashtag, trovati ${hashtagCount}`);
+}
+
 export function buildJobs(page) {
   if (!page.dueAt || Number.isNaN(Date.parse(page.dueAt))) throw new Error(`${page.title}: Data mancante o non valida`);
   if (!page.publicUrls.length) throw new Error(`${page.title}: nessun URL media pubblico`);
   if (["Story", "Stories"].includes(page.format)) {
     return page.publicUrls.map((url, index) => ({ type: "story", dueAt: addMinutes(page.dueAt, index), caption: "", urls: [url] }));
   }
+  validateCaption(page);
   if (["Feed singolo", "Post singolo"].includes(page.format)) {
     if (page.publicUrls.length !== 1) throw new Error(`${page.title}: il feed singolo richiede un asset`);
     return [{ type: "post", dueAt: new Date(page.dueAt).toISOString(), caption: page.caption, urls: page.publicUrls }];

@@ -26,13 +26,14 @@ jobs:
       BUFFER_SCHEDULE_HORIZON_DAYS: 10
       PUBLIC_MEDIA_BASE_URL: https://slash-92.github.io/soluzioni-dirette-social-publisher/media
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: main
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
+          package-manager-cache: false
       - name: Test migration and idempotency rules
         run: node --test automation/notion-sync.test.mjs
       - name: Verify Notion configuration
