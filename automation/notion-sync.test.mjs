@@ -11,8 +11,10 @@ import {
   deriveEntryStatus,
   isEligibleSyncPage,
   isManageableBufferStatus,
+  operationFingerprint,
   parseNotionPage,
   requiresMediaCheck,
+  shouldRefreshScheduledPost,
   shouldDeferCreation,
 } from "./notion-sync.mjs";
 
@@ -166,6 +168,18 @@ test("lo stato transitorio sending resta gestibile senza falso errore", () => {
 test("la riconciliazione non dipende dalla disponibilita temporanea dei media", () => {
   assert.equal(requiresMediaCheck("create"), true);
   assert.equal(requiresMediaCheck("reconcile"), false);
+});
+
+test("un post programmato viene aggiornato solo se copy, media o orario cambiano", () => {
+  const [operation] = buildOperations(parseNotionPage(pageFixture()), [
+    { platform: "instagram", channelId: "ig-id" },
+  ]);
+  const fingerprint = operationFingerprint(operation);
+  assert.equal(shouldRefreshScheduledPost("scheduled", undefined, fingerprint), true);
+  assert.equal(shouldRefreshScheduledPost("scheduled", fingerprint, fingerprint), false);
+  assert.equal(shouldRefreshScheduledPost("published", undefined, fingerprint), false);
+  assert.equal(shouldRefreshScheduledPost("sent", undefined, fingerprint), false);
+  assert.equal(shouldRefreshScheduledPost("sending", undefined, fingerprint), false);
 });
 
 test("una nuova pubblicazione resta differita oltre l'orizzonte Buffer", () => {

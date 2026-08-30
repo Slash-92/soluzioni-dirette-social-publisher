@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -194,6 +195,15 @@ export function buildBufferInput(job, channelId, saveToDraft = true) {
   };
 }
 
+export function operationFingerprint(operation) {
+  const input = buildBufferInput(operation, operation.channelId, false);
+  return createHash("sha256").update(JSON.stringify(input)).digest("hex");
+}
+
+export function shouldRefreshScheduledPost(status, previousFingerprint, nextFingerprint) {
+  return ["scheduled", "buffer"].includes(status) && previousFingerprint !== nextFingerprint;
+}
+
 export function decideAction(page, stateEntry = {}) {
   const refs = page.bufferRefs.length ? page.bufferRefs : stateEntry.bufferRefs ?? [];
   if (refs.length) return "reconcile";
@@ -333,7 +343,13 @@ async function createAndSchedule(page, operations, state) {
     const post = actionPost(data.createPost, `Creazione bozza ${page.key}/${operation.operationKey}`);
     refs.set(operation.operationKey, post.id);
     entry.bufferRefs = serializeBufferRefs(refs);
-    entry.jobs[operation.operationKey] = { postId: post.id, platform: operation.platform, status: "draft", dueAt: operation.dueAt };
+    entry.jobs[operation.operationKey] = {
+      postId: post.id,
+      platform: operation.platform,
+      status: "draft",
+      dueAt: operation.dueAt,
+      fingerprint: operationFingerprint(operation),
+    };
     await saveState(state);
     await updateNotion(page.id, { bufferRefs: entry.bufferRefs, syncedAt: new Date().toISOString() });
   }
@@ -341,14 +357,26 @@ async function createAndSchedule(page, operations, state) {
     const postId = refs.get(operation.operationKey);
     const current = await bufferRequest(GET_POST, { input: { id: postId } });
     if (isManageableBufferStatus(current.post.status)) {
-      entry.jobs[operation.operationKey] = { postId, platform: operation.platform, status: current.post.status, dueAt: current.post.dueAt ?? operation.dueAt };
+      entry.jobs[operation.operationKey] = {
+        postId,
+        platform: operation.platform,
+        status: current.post.status,
+        dueAt: current.post.dueAt ?? operation.dueAt,
+        fingerprint: operationFingerprint(operation),
+      };
       continue;
     }
     const draftInput = buildBufferInput(operation, operation.channelId, false);
     const { channelId: _channelId, needsApproval: _needsApproval, ...editable } = draftInput;
     const data = await bufferRequest(EDIT_POST, { input: { ...editable, id: postId } });
     const post = actionPost(data.editPost, `Programmazione ${page.key}/${operation.operationKey}`);
-    entry.jobs[operation.operationKey] = { postId, platform: operation.platform, status: post.status, dueAt: post.dueAt };
+    entry.jobs[operation.operationKey] = {
+      postId,
+      platform: operation.platform,
+      status: post.status,
+      dueAt: post.dueAt,
+      fingerprint: operationFingerprint(operation),
+    };
     await saveState(state);
   }
   entry.bufferRefs = serializeBufferRefs(refs);
@@ -369,18 +397,27 @@ async function reconcile(page, operations, state) {
     const postId = refs.get(operation.operationKey);
     const data = await bufferRequest(GET_POST, { input: { id: postId } });
     let post = data.post;
-    if (post.status === "draft") {
+    const fingerprint = operationFingerprint(operation);
+    const previousFingerprint = entry.jobs?.[operation.operationKey]?.fingerprint;
+    if (post.status === "draft" || shouldRefreshScheduledPost(post.status, previousFingerprint, fingerprint)) {
       const draftInput = buildBufferInput(operation, operation.channelId, false);
       const { channelId: _channelId, needsApproval: _needsApproval, ...editable } = draftInput;
       const scheduled = await bufferRequest(EDIT_POST, { input: { ...editable, id: postId } });
-      post = actionPost(scheduled.editPost, `Ripresa bozza ${page.key}/${operation.operationKey}`);
+      const operationLabel = post.status === "draft" ? "Ripresa bozza" : "Aggiornamento programmato";
+      post = actionPost(scheduled.editPost, `${operationLabel} ${page.key}/${operation.operationKey}`);
     }
     if (!isManageableBufferStatus(post.status)) {
       throw new Error(`${page.title}: stato Buffer non gestibile (${post.status}) per ${post.id}`);
     }
     statuses.push(post.status);
     if (post.externalLink) publishedUrls.push(post.externalLink);
-    entry.jobs[operation.operationKey] = { postId: post.id, platform: operation.platform, status: post.status, dueAt: post.dueAt ?? operation.dueAt };
+    entry.jobs[operation.operationKey] = {
+      postId: post.id,
+      platform: operation.platform,
+      status: post.status,
+      dueAt: post.dueAt ?? operation.dueAt,
+      fingerprint,
+    };
   }
   entry.bufferRefs = serializeBufferRefs(refs);
   entry.status = deriveEntryStatus(statuses);
