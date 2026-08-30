@@ -5,6 +5,7 @@ import {
   buildBufferInput,
   buildJobs,
   buildOperations,
+  configuredChannels,
   decideAction,
   deriveEntryStatus,
   isEligibleSyncPage,
@@ -77,6 +78,30 @@ test("un carosello genera una operazione distinta per Instagram e Facebook", () 
   assert.deepEqual(operations.map((item) => item.operationKey), ["instagram:1", "facebook:1"]);
   assert.equal(buildBufferInput(operations[0], operations[0].channelId).metadata.instagram.type, "post");
   assert.equal(buildBufferInput(operations[1], operations[1].channelId).metadata.facebook.type, "post");
+  assert.equal(buildBufferInput(operations[1], operations[1].channelId).source, "soluzioni-dirette-notion-sync");
+});
+
+test("senza canali espliciti la pubblicazione fallisce in sicurezza", () => {
+  const parsed = parseNotionPage(pageFixture({ Canali: { type: "multi_select", multi_select: [] } }));
+  assert.throws(() => buildOperations(parsed, [
+    { platform: "instagram", channelId: "ig-id" },
+    { platform: "facebook", channelId: "fb-id" },
+  ]), /selezionare almeno un canale/);
+});
+
+test("gli ID dei canali Instagram e Facebook devono essere distinti", () => {
+  const previousInstagram = process.env.BUFFER_INSTAGRAM_CHANNEL_ID;
+  const previousFacebook = process.env.BUFFER_FACEBOOK_CHANNEL_ID;
+  process.env.BUFFER_INSTAGRAM_CHANNEL_ID = "same-id";
+  process.env.BUFFER_FACEBOOK_CHANNEL_ID = "same-id";
+  try {
+    assert.throws(() => configuredChannels(), /devono avere ID distinti/);
+  } finally {
+    if (previousInstagram === undefined) delete process.env.BUFFER_INSTAGRAM_CHANNEL_ID;
+    else process.env.BUFFER_INSTAGRAM_CHANNEL_ID = previousInstagram;
+    if (previousFacebook === undefined) delete process.env.BUFFER_FACEBOOK_CHANNEL_ID;
+    else process.env.BUFFER_FACEBOOK_CHANNEL_ID = previousFacebook;
+  }
 });
 
 test("le Stories diventano operazioni separate a un minuto di distanza", () => {
@@ -137,6 +162,14 @@ test("una riga già pubblicata non consuma più richieste Buffer", () => {
   const published = parseNotionPage(pageFixture({ "Stato pubblicazione": { type: "select", select: { name: "Pubblicato" } } }));
   const scheduled = parseNotionPage(pageFixture({ "Stato pubblicazione": { type: "select", select: { name: "Programmato" } } }));
   assert.equal(isEligibleSyncPage(published), false);
+  assert.equal(isEligibleSyncPage(scheduled), true);
+});
+
+test("una riga programmata resta riconciliabile anche se l'approvazione viene tolta", () => {
+  const scheduled = parseNotionPage(pageFixture({
+    "Stato pubblicazione": { type: "select", select: { name: "Programmato" } },
+    "Pronto per pubblicazione": { type: "checkbox", checkbox: false },
+  }));
   assert.equal(isEligibleSyncPage(scheduled), true);
 });
 

@@ -130,11 +130,15 @@ export function configuredChannels() {
   if (process.env.BUFFER_INSTAGRAM_CHANNEL_ID) channels.push({ platform: "instagram", channelId: process.env.BUFFER_INSTAGRAM_CHANNEL_ID });
   if (process.env.BUFFER_FACEBOOK_CHANNEL_ID) channels.push({ platform: "facebook", channelId: process.env.BUFFER_FACEBOOK_CHANNEL_ID });
   if (!channels.length) throw new Error("Nessun canale Buffer configurato");
+  if (new Set(channels.map(({ channelId }) => channelId)).size !== channels.length) {
+    throw new Error("I canali Buffer Instagram e Facebook devono avere ID distinti");
+  }
   return channels;
 }
 
 export function buildOperations(page, channels = configuredChannels()) {
-  const selected = page.channels.length ? new Set(page.channels) : new Set(["instagram", "facebook"]);
+  if (!page.channels.length) throw new Error(`${page.title}: selezionare almeno un canale in Notion`);
+  const selected = new Set(page.channels);
   const jobs = buildJobs(page);
   const operations = channels
     .filter(({ platform }) => selected.has(platform))
@@ -173,7 +177,7 @@ export function buildBufferInput(job, channelId, saveToDraft = true) {
     saveToDraft,
     needsApproval: false,
     aiAssisted: false,
-    source: "instagram-notion-sync",
+    source: "soluzioni-dirette-notion-sync",
     assets: job.urls.map((url) => (isVideo(url) ? { video: { url } } : { image: { url } })),
     metadata,
   };
@@ -194,8 +198,7 @@ export function requiresMediaCheck(action) {
 
 export function isEligibleSyncPage(page) {
   return page.brand === "Soluzioni Dirette"
-    && page.ready
-    && ["Da programmare", "Programmato", "Errore"].includes(page.status);
+    && (page.status === "Programmato" || (page.ready && ["Da programmare", "Errore"].includes(page.status)));
 }
 
 export function shouldDeferCreation(dueAt, now = new Date(), horizonDays = DEFAULT_SCHEDULE_HORIZON_DAYS) {

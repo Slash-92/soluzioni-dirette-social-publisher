@@ -3,8 +3,8 @@ name: Notion Buffer sync
 on:
   workflow_dispatch:
   schedule:
-    # Una volta al giorno: 07:15 in Italia con ora legale, 06:15 con ora solare.
-    - cron: '15 5 * * *'
+    - cron: "15 7 * * *"
+      timezone: "Europe/Rome"
 
 concurrency:
   group: soluzioni-dirette-buffer-sync
@@ -16,6 +16,7 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
       NOTION_DATA_SOURCE_ID: cea1e2e8-81ce-4733-a556-f4233df5d2b6
@@ -34,12 +35,15 @@ jobs:
           node-version: 24
       - name: Test migration and idempotency rules
         run: node --test automation/notion-sync.test.mjs
+      - name: Verify Notion configuration
+        shell: bash
+        run: |
+          test -n "$NOTION_API_TOKEN" || { echo "::error::NOTION_API_TOKEN secret assente o non disponibile"; exit 1; }
+      - name: Report Buffer configuration
+        if: env.BUFFER_API_KEY == ''
+        run: echo "::warning::BUFFER_API_KEY assente; i media possono essere preparati, ma le pubblicazioni Buffer entreranno in Errore."
       - name: Sync approved Notion content
-        if: env.NOTION_API_TOKEN != ''
         run: node automation/notion-sync.mjs
-      - name: Notion integration not configured yet
-        if: env.NOTION_API_TOKEN == ''
-        run: echo "NOTION_API_TOKEN assente; la programmazione Buffer esistente resta invariata."
       - name: Save media and idempotency state
         if: always()
         run: |
@@ -50,7 +54,8 @@ jobs:
           if git diff --cached --quiet; then
             exit 0
           fi
-          git config user.name "instagram-notion-bot"
+          git config user.name "soluzioni-dirette-notion-bot"
           git config user.email "actions@users.noreply.github.com"
           git commit -m "Sync approved Notion content"
+          git pull --rebase origin main
           git push
