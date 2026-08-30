@@ -2,6 +2,9 @@ name: Notion Buffer sync
 
 on:
   workflow_dispatch:
+  schedule:
+    # Una volta al giorno: 07:15 in Italia con ora legale, 06:15 con ora solare.
+    - cron: '15 5 * * *'
 
 concurrency:
   group: soluzioni-dirette-buffer-sync
