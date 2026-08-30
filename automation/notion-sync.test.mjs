@@ -54,6 +54,13 @@ test("un ID Buffer esistente forza la sola riconciliazione", () => {
   assert.equal(decideAction(parsed), "reconcile");
 });
 
+test("una riga in errore senza ID viene ritentata", () => {
+  const parsed = parseNotionPage(pageFixture({
+    "Stato pubblicazione": { type: "select", select: { name: "Errore" } },
+  }));
+  assert.equal(decideAction(parsed), "create");
+});
+
 test("un carosello produce una sola operazione con asset ordinati", () => {
   const jobs = buildJobs(parseNotionPage(pageFixture()));
   assert.equal(jobs.length, 1);

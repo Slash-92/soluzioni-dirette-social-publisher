@@ -184,7 +184,7 @@ export function decideAction(page, stateEntry = {}) {
   if (refs.length) return "reconcile";
   if (!page.publicUrls.length && page.mediaFiles.length) return "prepare-media";
   if (!page.publicUrls.length) return "missing-media";
-  if (page.status === "Da programmare" && page.ready) return "create";
+  if (["Da programmare", "Errore"].includes(page.status) && page.ready) return "create";
   return "ignore";
 }
 
