@@ -15,12 +15,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
-      NOTION_DATA_SOURCE_ID: ${{ vars.NOTION_DATA_SOURCE_ID }}
+      NOTION_DATA_SOURCE_ID: cea1e2e8-81ce-4733-a556-f4233df5d2b6
       BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
-      BUFFER_INSTAGRAM_CHANNEL_ID: ${{ secrets.BUFFER_INSTAGRAM_CHANNEL_ID }}
-      BUFFER_FACEBOOK_CHANNEL_ID: ${{ secrets.BUFFER_FACEBOOK_CHANNEL_ID }}
-      BUFFER_SCHEDULE_HORIZON_DAYS: ${{ vars.BUFFER_SCHEDULE_HORIZON_DAYS || '10' }}
-      PUBLIC_MEDIA_BASE_URL: ${{ vars.PUBLIC_MEDIA_BASE_URL }}
+      BUFFER_INSTAGRAM_CHANNEL_ID: 6a943748065799be46542c4d
+      BUFFER_FACEBOOK_CHANNEL_ID: 6a9443f6065799be465481e8
+      BUFFER_SCHEDULE_HORIZON_DAYS: 10
+      PUBLIC_MEDIA_BASE_URL: https://slash-92.github.io/soluzioni-dirette-social-publisher/media
     steps:
       - uses: actions/checkout@v4
         with:
