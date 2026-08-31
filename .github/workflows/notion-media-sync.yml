@@ -1,0 +1,54 @@
+name: Notion media sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/15 * * * *"
+      timezone: "Europe/Rome"
+
+concurrency:
+  group: soluzioni-dirette-media-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  sync-media:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
+      NOTION_DATA_SOURCE_ID: cea1e2e8-81ce-4733-a556-f4233df5d2b6
+      PUBLIC_MEDIA_BASE_URL: https://slash-92.github.io/soluzioni-dirette-social-publisher/media
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Test media and publishing rules
+        run: node --test automation/notion-sync.test.mjs
+      - name: Verify Notion configuration
+        shell: bash
+        run: |
+          test -n "$NOTION_API_TOKEN" || { echo "::error::NOTION_API_TOKEN secret assente o non disponibile"; exit 1; }
+      - name: Copy approved Notion media
+        run: node automation/notion-sync.mjs --media-only
+      - name: Publish new media to the repository
+        if: always()
+        run: |
+          if [ -d media/notion ]; then
+            git add -- media/notion
+          fi
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name "soluzioni-dirette-notion-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git commit -m "Sync approved Notion media"
+          git pull --rebase origin main
+          git push

@@ -523,6 +523,7 @@ async function main() {
     return;
   }
   const dryRun = hasFlag("--dry-run");
+  const mediaOnly = hasFlag("--media-only");
   const pages = (await queryNotionPages()).sort((left, right) => {
     const leftTime = Date.parse(left.dueAt);
     const rightTime = Date.parse(right.dueAt);
@@ -533,11 +534,12 @@ async function main() {
   const state = await readJson(statePath, { schemaVersion: 2, pages: {} });
   const horizonDays = Number.parseFloat(process.env.BUFFER_SCHEDULE_HORIZON_DAYS || String(DEFAULT_SCHEDULE_HORIZON_DAYS));
   const queueTarget = Number.parseInt(process.env.BUFFER_QUEUE_TARGET_PER_CHANNEL || String(DEFAULT_QUEUE_TARGET_PER_CHANNEL), 10);
-  const channels = configuredChannels();
+  const channels = mediaOnly ? [] : configuredChannels();
   let queueCounts;
   const summary = { total: pages.length, ignored: 0, deferred: 0, capacityDeferred: 0, preparedMedia: 0, created: 0, reconciled: 0, errors: 0, rateLimited: false };
   for (const page of pages) {
-    if (!isEligibleSyncPage(page)) {
+    const eligible = mediaOnly ? isMediaPreparationCandidate(page) : isEligibleSyncPage(page);
+    if (!eligible) {
       summary.ignored += 1;
       continue;
     }
@@ -592,7 +594,7 @@ async function main() {
       await updateNotion(page.id, { status: "Errore", error: error.message, syncedAt: new Date().toISOString() });
     }
   }
-  await saveState(state);
+  if (!mediaOnly) await saveState(state);
   console.log(JSON.stringify(summary, null, 2));
   if (summary.errors) process.exitCode = 1;
 }

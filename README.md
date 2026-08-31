@@ -21,8 +21,10 @@ su GitHub Pages quando sono vere queste condizioni:
 - `URL media pubblici` ancora vuoto.
 
 Per questa fase non servono ancora data, canali o stato `Da programmare`. Il
-workflow scarica i file, li salva in `media/notion`, esegue il commit automatico
-e scrive in Notion gli URL pubblici generati da GitHub Pages.
+workflow `notion-media-sync.yml` controlla Notion ogni 15 minuti, scarica i
+file, li salva in `media/notion`, esegue il commit automatico e scrive in Notion
+gli URL pubblici generati da GitHub Pages. Il Mac personale non deve essere
+acceso.
 
 ### 2. GitHub Pages → Buffer
 
@@ -47,7 +49,8 @@ Notion con stato `Da programmare` e viene riprovato al passaggio successivo.
 Non aggiungere credenziali ai file. Le chiavi restano esclusivamente nei GitHub
 Actions Secrets. `.env` è riservato a eventuali test locali ed è escluso da Git.
 
-La sincronizzazione viene eseguita automaticamente una volta al giorno alle
-07:15, fuso `Europe/Rome`, ed è disponibile anche manualmente. Il workflow
-`pages.yml` pubblica i media approvati dopo ogni sincronizzazione che aggiunge
-nuovi file.
+La fase Buffer viene eseguita automaticamente una volta al giorno alle 07:15,
+fuso `Europe/Rome`, ed è disponibile anche manualmente. Prima di creare una
+pubblicazione verifica con una richiesta reale che ogni URL GitHub Pages abbia
+un MIME immagine/video valido e un corpo non vuoto. Il workflow `pages.yml`
+pubblica i media dopo ogni commit che aggiunge nuovi file.
