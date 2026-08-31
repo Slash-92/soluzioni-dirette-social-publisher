@@ -21,7 +21,7 @@ su GitHub Pages quando sono vere queste condizioni:
 - `URL media pubblici` ancora vuoto.
 
 Per questa fase non servono ancora data, canali o stato `Da programmare`. Il
-workflow `notion-media-sync.yml` controlla Notion ogni 15 minuti, scarica i
+workflow `notion-media-sync.yml` controlla Notion ogni ora, scarica i
 file, li salva in `media/notion`, esegue il commit automatico e scrive in Notion
 gli URL pubblici generati da GitHub Pages. Il Mac personale non deve essere
 acceso.
