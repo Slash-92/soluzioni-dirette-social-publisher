@@ -218,9 +218,17 @@ export function requiresMediaCheck(action) {
   return action === "create";
 }
 
-export function isEligibleSyncPage(page) {
+export function isMediaPreparationCandidate(page) {
   return page.brand === "Soluzioni Dirette"
-    && (page.status === "Programmato" || (page.ready && ["Da programmare", "Errore"].includes(page.status)));
+    && page.ready
+    && !page.publicUrls.length
+    && page.mediaFiles.length > 0;
+}
+
+export function isEligibleSyncPage(page) {
+  return isMediaPreparationCandidate(page)
+    || (page.brand === "Soluzioni Dirette"
+      && (page.status === "Programmato" || (page.ready && ["Da programmare", "Errore"].includes(page.status))));
 }
 
 export function shouldDeferCreation(dueAt, now = new Date(), horizonDays = DEFAULT_SCHEDULE_HORIZON_DAYS) {

@@ -10,6 +10,7 @@ import {
   decideAction,
   deriveEntryStatus,
   isEligibleSyncPage,
+  isMediaPreparationCandidate,
   isManageableBufferStatus,
   hasQueueCapacity,
   missingOperations,
@@ -161,6 +162,46 @@ test("gli URL pubblici mancanti preparano i file senza chiamare Buffer", () => {
     },
   }));
   assert.equal(decideAction(parsed), "prepare-media");
+});
+
+test("un contenuto approvato con file Media entra su GitHub anche senza stato Buffer", () => {
+  const parsed = parseNotionPage(pageFixture({
+    "Stato pubblicazione": { type: "select", select: null },
+    Data: { type: "date", date: null },
+    Canali: { type: "multi_select", multi_select: [] },
+    "URL media pubblici": richText(""),
+    Media: {
+      type: "files",
+      files: [{ name: "slide.png", type: "external", external: { url: "https://example.com/slide.png" } }],
+    },
+  }));
+  assert.equal(isMediaPreparationCandidate(parsed), true);
+  assert.equal(isEligibleSyncPage(parsed), true);
+  assert.equal(decideAction(parsed), "prepare-media");
+});
+
+test("un file Notion non approvato non viene pubblicato su GitHub", () => {
+  const parsed = parseNotionPage(pageFixture({
+    "Stato pubblicazione": { type: "select", select: null },
+    "Pronto per pubblicazione": { type: "checkbox", checkbox: false },
+    "URL media pubblici": richText(""),
+    Media: {
+      type: "files",
+      files: [{ name: "slide.png", type: "external", external: { url: "https://example.com/slide.png" } }],
+    },
+  }));
+  assert.equal(isMediaPreparationCandidate(parsed), false);
+  assert.equal(isEligibleSyncPage(parsed), false);
+});
+
+test("un contenuto approvato senza file Media non genera cartelle GitHub vuote", () => {
+  const parsed = parseNotionPage(pageFixture({
+    "Stato pubblicazione": { type: "select", select: null },
+    "URL media pubblici": richText(""),
+    Media: { type: "files", files: [] },
+  }));
+  assert.equal(isMediaPreparationCandidate(parsed), false);
+  assert.equal(isEligibleSyncPage(parsed), false);
 });
 
 test("lo stato transitorio sending resta gestibile senza falso errore", () => {
