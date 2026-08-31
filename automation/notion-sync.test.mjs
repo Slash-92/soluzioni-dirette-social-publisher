@@ -11,8 +11,12 @@ import {
   deriveEntryStatus,
   isEligibleSyncPage,
   isManageableBufferStatus,
+  hasQueueCapacity,
+  missingOperations,
   operationFingerprint,
   parseNotionPage,
+  requiredQueueSlots,
+  reserveQueueCapacity,
   requiresMediaCheck,
   shouldRefreshScheduledPost,
   shouldDeferCreation,
@@ -187,6 +191,41 @@ test("una nuova pubblicazione resta differita oltre l'orizzonte Buffer", () => {
   assert.equal(shouldDeferCreation("2026-09-09T16:30:00.000Z", now, 10), true);
   assert.equal(shouldDeferCreation("2026-08-30T16:30:00.000Z", now, 10), false);
   assert.equal(shouldDeferCreation("data-non-valida", now, 10), false);
+});
+
+test("la coda gratuita viene valutata per canale e il contenuto entra solo per intero", () => {
+  const operations = buildOperations(parseNotionPage(pageFixture()), [
+    { platform: "instagram", channelId: "ig-id" },
+    { platform: "facebook", channelId: "fb-id" },
+  ]);
+  const counts = new Map([["ig-id", 8], ["fb-id", 9]]);
+  assert.equal(hasQueueCapacity(counts, operations, new Map(), 9), false);
+  counts.set("fb-id", 8);
+  assert.equal(hasQueueCapacity(counts, operations, new Map(), 9), true);
+  reserveQueueCapacity(counts, operations);
+  assert.deepEqual([...counts.entries()], [["ig-id", 9], ["fb-id", 9]]);
+});
+
+test("una Story richiede tutti gli slot dei frame prima della creazione", () => {
+  const story = parseNotionPage(pageFixture({
+    Formato: { type: "multi_select", multi_select: [{ name: "Story" }] },
+    Caption: richText(""),
+    "URL media pubblici": richText("https://example.com/01.png\nhttps://example.com/02.png\nhttps://example.com/03.png"),
+  }));
+  const operations = buildOperations(story, [{ platform: "instagram", channelId: "ig-id" }]);
+  assert.equal(requiredQueueSlots(operations).get("ig-id"), 3);
+  assert.equal(hasQueueCapacity(new Map([["ig-id", 7]]), operations, new Map(), 9), false);
+  assert.equal(hasQueueCapacity(new Map([["ig-id", 6]]), operations, new Map(), 9), true);
+});
+
+test("gli ID già presenti non consumano nuovamente capacità", () => {
+  const operations = buildOperations(parseNotionPage(pageFixture()), [
+    { platform: "instagram", channelId: "ig-id" },
+    { platform: "facebook", channelId: "fb-id" },
+  ]);
+  const refs = new Map([["instagram:1", "existing-id"]]);
+  assert.deepEqual(missingOperations(operations, refs).map((operation) => operation.operationKey), ["facebook:1"]);
+  assert.deepEqual([...requiredQueueSlots(operations, refs).entries()], [["fb-id", 1]]);
 });
 
 test("una riga già pubblicata non consuma più richieste Buffer", () => {

@@ -9,6 +9,7 @@ const BUFFER_API = "https://api.buffer.com";
 const DEFAULT_DATA_SOURCE_ID = "";
 const DEFAULT_MEDIA_BASE = "";
 const DEFAULT_SCHEDULE_HORIZON_DAYS = 10;
+const DEFAULT_QUEUE_TARGET_PER_CHANNEL = 9;
 const MANAGEABLE_BUFFER_STATUSES = new Set(["sent", "published", "scheduled", "buffer", "sending"]);
 const scriptDir = import.meta.dirname;
 const repoRoot = path.resolve(scriptDir, "..");
@@ -228,6 +229,31 @@ export function shouldDeferCreation(dueAt, now = new Date(), horizonDays = DEFAU
   return dueTime - now.getTime() > horizonDays * 86_400_000;
 }
 
+export function missingOperations(operations, knownRefs = new Map()) {
+  return operations.filter((operation) => !knownRefs.has(operation.operationKey));
+}
+
+export function requiredQueueSlots(operations, knownRefs = new Map()) {
+  const required = new Map();
+  for (const operation of missingOperations(operations, knownRefs)) {
+    required.set(operation.channelId, (required.get(operation.channelId) ?? 0) + 1);
+  }
+  return required;
+}
+
+export function hasQueueCapacity(queueCounts, operations, knownRefs = new Map(), target = DEFAULT_QUEUE_TARGET_PER_CHANNEL) {
+  for (const [channelId, required] of requiredQueueSlots(operations, knownRefs)) {
+    if ((queueCounts.get(channelId) ?? 0) + required > target) return false;
+  }
+  return true;
+}
+
+export function reserveQueueCapacity(queueCounts, operations, knownRefs = new Map()) {
+  for (const [channelId, required] of requiredQueueSlots(operations, knownRefs)) {
+    queueCounts.set(channelId, (queueCounts.get(channelId) ?? 0) + required);
+  }
+}
+
 async function notionRequest(endpoint, { method = "GET", body } = {}) {
   const token = process.env.NOTION_API_TOKEN;
   if (!token) throw new Error("NOTION_API_TOKEN non configurato");
@@ -293,6 +319,20 @@ async function bufferRequest(query, variables) {
 const CREATE_POST = `mutation CreatePost($input: CreatePostInput!) { createPost(input: $input) { __typename ... on PostActionSuccess { post { id status dueAt } } ... on MutationError { message } } }`;
 const EDIT_POST = `mutation EditPost($input: EditPostInput!) { editPost(input: $input) { __typename ... on PostActionSuccess { post { id status dueAt } } ... on MutationError { message } } }`;
 const GET_POST = `query GetPost($input: PostInput!) { post(input: $input) { id status dueAt sentAt externalLink } }`;
+const GET_ACCOUNT_ORGANIZATIONS = `query AccountOrganizations { account { organizations { id } } }`;
+const GET_SCHEDULED_POSTS = `query ScheduledPosts($organizationId: OrganizationId!) { posts(first: 100, input: { organizationId: $organizationId, filter: { status: [scheduled] } }) { edges { node { id channelId status } } } }`;
+
+async function getQueueCounts(channels) {
+  const counts = new Map(channels.map(({ channelId }) => [channelId, 0]));
+  const account = await bufferRequest(GET_ACCOUNT_ORGANIZATIONS, {});
+  for (const organization of account.account.organizations ?? []) {
+    const data = await bufferRequest(GET_SCHEDULED_POSTS, { organizationId: organization.id });
+    for (const { node } of data.posts.edges ?? []) {
+      if (counts.has(node.channelId)) counts.set(node.channelId, counts.get(node.channelId) + 1);
+    }
+  }
+  return counts;
+}
 
 function actionPost(payload, operation) {
   if (payload.__typename === "PostActionSuccess") return payload.post;
@@ -439,11 +479,35 @@ async function main() {
     console.log(JSON.stringify({ notionDataSourceId: process.env.NOTION_DATA_SOURCE_ID || DEFAULT_DATA_SOURCE_ID, publicMediaBaseUrl: process.env.PUBLIC_MEDIA_BASE_URL || DEFAULT_MEDIA_BASE, channels: configuredChannels(), scheduleHorizonDays: Number.parseFloat(process.env.BUFFER_SCHEDULE_HORIZON_DAYS || String(DEFAULT_SCHEDULE_HORIZON_DAYS)) }, null, 2));
     return;
   }
+  if (hasFlag("--report-queue")) {
+    const channels = configuredChannels();
+    const counts = await getQueueCounts(channels);
+    const target = Number.parseInt(process.env.BUFFER_QUEUE_TARGET_PER_CHANNEL || String(DEFAULT_QUEUE_TARGET_PER_CHANNEL), 10);
+    console.log(JSON.stringify({
+      targetPerChannel: target,
+      channels: channels.map(({ platform, channelId }) => ({
+        platform,
+        channelId,
+        scheduled: counts.get(channelId) ?? 0,
+        availableWithinTarget: Math.max(0, target - (counts.get(channelId) ?? 0)),
+      })),
+    }, null, 2));
+    return;
+  }
   const dryRun = hasFlag("--dry-run");
-  const pages = await queryNotionPages();
+  const pages = (await queryNotionPages()).sort((left, right) => {
+    const leftTime = Date.parse(left.dueAt);
+    const rightTime = Date.parse(right.dueAt);
+    if (Number.isNaN(leftTime)) return 1;
+    if (Number.isNaN(rightTime)) return -1;
+    return leftTime - rightTime;
+  });
   const state = await readJson(statePath, { schemaVersion: 2, pages: {} });
   const horizonDays = Number.parseFloat(process.env.BUFFER_SCHEDULE_HORIZON_DAYS || String(DEFAULT_SCHEDULE_HORIZON_DAYS));
-  const summary = { total: pages.length, ignored: 0, deferred: 0, preparedMedia: 0, created: 0, reconciled: 0, errors: 0, rateLimited: false };
+  const queueTarget = Number.parseInt(process.env.BUFFER_QUEUE_TARGET_PER_CHANNEL || String(DEFAULT_QUEUE_TARGET_PER_CHANNEL), 10);
+  const channels = configuredChannels();
+  let queueCounts;
+  const summary = { total: pages.length, ignored: 0, deferred: 0, capacityDeferred: 0, preparedMedia: 0, created: 0, reconciled: 0, errors: 0, rateLimited: false };
   for (const page of pages) {
     if (!isEligibleSyncPage(page)) {
       summary.ignored += 1;
@@ -469,7 +533,7 @@ async function main() {
         summary.ignored += 1;
         continue;
       }
-      const operations = buildOperations(page);
+      const operations = buildOperations(page, channels);
       const knownRefs = parseBufferRefs(page.bufferRefs.length ? page.bufferRefs : state.pages[page.id]?.bufferRefs ?? []);
       const effectiveAction = action === "reconcile" && operations.some((operation) => !knownRefs.has(operation.operationKey))
         ? "create"
@@ -479,7 +543,14 @@ async function main() {
         await reconcile(page, operations, state);
         summary.reconciled += 1;
       } else {
+        queueCounts ??= await getQueueCounts(channels);
+        if (!hasQueueCapacity(queueCounts, operations, knownRefs, queueTarget)) {
+          summary.capacityDeferred += 1;
+          console.log(`${page.key}: coda Buffer piena rispetto alla soglia ${queueTarget}; contenuto lasciato in Notion per il prossimo passaggio.`);
+          continue;
+        }
         await createAndSchedule(page, operations, state);
+        reserveQueueCapacity(queueCounts, operations, knownRefs);
         summary.created += 1;
       }
     } catch (error) {

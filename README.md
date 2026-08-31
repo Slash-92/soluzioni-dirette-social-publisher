@@ -23,7 +23,12 @@ successivo verifica gli URL pubblici e crea le programmazioni Buffer senza
 duplicati.
 
 Le nuove pubblicazioni vengono create in Buffer soltanto quando entrano nella
-finestra dei 10 giorni precedenti la data prevista.
+finestra dei 10 giorni precedenti la data prevista. Prima di creare un post,
+l'automazione legge la coda reale di ogni canale e mantiene una soglia di 9
+elementi su 10: il decimo slot resta libero come margine di sicurezza. Un
+carosello occupa uno slot per canale; una Story occupa uno slot per ciascun
+frame. Se l'intero contenuto non entra su tutti i canali selezionati, resta in
+Notion con stato `Da programmare` e viene riprovato al passaggio successivo.
 
 Non aggiungere credenziali ai file. Le chiavi restano esclusivamente nei GitHub
 Actions Secrets. `.env` è riservato a eventuali test locali ed è escluso da Git.

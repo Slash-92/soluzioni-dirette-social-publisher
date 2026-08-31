@@ -24,6 +24,7 @@ jobs:
       BUFFER_INSTAGRAM_CHANNEL_ID: 6a943748065799be46542c4d
       BUFFER_FACEBOOK_CHANNEL_ID: 6a9443f6065799be465481e8
       BUFFER_SCHEDULE_HORIZON_DAYS: 10
+      BUFFER_QUEUE_TARGET_PER_CHANNEL: 9
       PUBLIC_MEDIA_BASE_URL: https://slash-92.github.io/soluzioni-dirette-social-publisher/media
     steps:
       - uses: actions/checkout@v5
@@ -43,6 +44,9 @@ jobs:
       - name: Report Buffer configuration
         if: env.BUFFER_API_KEY == ''
         run: echo "::warning::BUFFER_API_KEY assente; i media possono essere preparati, ma le pubblicazioni Buffer entreranno in Errore."
+      - name: Report free queue capacity
+        if: env.BUFFER_API_KEY != ''
+        run: node automation/notion-sync.mjs --report-queue
       - name: Sync approved Notion content
         run: node automation/notion-sync.mjs
       - name: Save media and idempotency state
