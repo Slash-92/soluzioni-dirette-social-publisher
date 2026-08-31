@@ -12,6 +12,7 @@ import {
   isEligibleSyncPage,
   isMediaPreparationCandidate,
   isManageableBufferStatus,
+  isPublishableMediaFile,
   hasQueueCapacity,
   missingOperations,
   operationFingerprint,
@@ -202,6 +203,13 @@ test("un contenuto approvato senza file Media non genera cartelle GitHub vuote",
   }));
   assert.equal(isMediaPreparationCandidate(parsed), false);
   assert.equal(isEligibleSyncPage(parsed), false);
+});
+
+test("GitHub conserva SVG e PNG ma soltanto i formati social entrano negli URL Buffer", () => {
+  assert.equal(isPublishableMediaFile("slide-01.svg"), false);
+  assert.equal(isPublishableMediaFile("slide-01.png"), true);
+  assert.equal(isPublishableMediaFile("foto.JPG"), true);
+  assert.equal(isPublishableMediaFile("reel.mp4"), true);
 });
 
 test("lo stato transitorio sending resta gestibile senza falso errore", () => {

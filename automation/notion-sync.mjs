@@ -106,6 +106,10 @@ function isVideo(url) {
   return /\.(mp4|mov|m4v)(?:$|\?)/i.test(url);
 }
 
+export function isPublishableMediaFile(name) {
+  return /\.(png|jpe?g|mp4|mov|m4v)$/i.test(name);
+}
+
 export function countHashtags(value) {
   return value.match(/(^|[^\p{L}\p{N}_])#[\p{L}\p{N}_]+/gu)?.length ?? 0;
 }
@@ -395,8 +399,11 @@ async function prepareMedia(page) {
     const response = await fetch(file.url, { redirect: "follow" });
     if (!response.ok) throw new Error(`Download asset fallito (${response.status}): ${file.name}`);
     await writeFile(path.join(targetDir, file.name), new Uint8Array(await response.arrayBuffer()));
-    publicUrls.push(`${baseUrl}/notion/${encodeURIComponent(safeKey)}/${encodeURIComponent(file.name)}`);
+    if (isPublishableMediaFile(file.name)) {
+      publicUrls.push(`${baseUrl}/notion/${encodeURIComponent(safeKey)}/${encodeURIComponent(file.name)}`);
+    }
   }
+  if (!publicUrls.length) throw new Error(`${page.title}: allegare almeno un PNG, JPG o video compatibile oltre agli SVG`);
   await updateNotion(page.id, { publicUrls, error: "", syncedAt: new Date().toISOString() });
 }
 

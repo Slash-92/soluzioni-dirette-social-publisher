@@ -26,6 +26,11 @@ file, li salva in `media/notion`, esegue il commit automatico e scrive in Notion
 gli URL pubblici generati da GitHub Pages. Il Mac personale non deve essere
 acceso.
 
+SVG e PNG vengono entrambi conservati nel repository. Negli `URL media
+pubblici` destinati a Buffer entrano però soltanto PNG, JPG e video compatibili:
+gli SVG restano disponibili per la revisione e le modifiche, ma non vengono
+inviati ai social.
+
 ### 2. GitHub Pages → Buffer
 
 La programmazione parte solo quando, oltre agli URL pubblici già pronti, sono
