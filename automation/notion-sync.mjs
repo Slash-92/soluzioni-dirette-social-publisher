@@ -319,14 +319,33 @@ async function bufferRequest(query, variables) {
 const CREATE_POST = `mutation CreatePost($input: CreatePostInput!) { createPost(input: $input) { __typename ... on PostActionSuccess { post { id status dueAt } } ... on MutationError { message } } }`;
 const EDIT_POST = `mutation EditPost($input: EditPostInput!) { editPost(input: $input) { __typename ... on PostActionSuccess { post { id status dueAt } } ... on MutationError { message } } }`;
 const GET_POST = `query GetPost($input: PostInput!) { post(input: $input) { id status dueAt sentAt externalLink } }`;
-const GET_ACCOUNT_ORGANIZATIONS = `query AccountOrganizations { account { organizations { id } } }`;
+const GET_POST_ORGANIZATION = `query PostOrganization($input: PostInput!) { post(input: $input) { channel { id organizationId } } }`;
 const GET_SCHEDULED_POSTS = `query ScheduledPosts($organizationId: OrganizationId!) { posts(first: 100, input: { organizationId: $organizationId, filter: { status: [scheduled] } }) { edges { node { id channelId status } } } }`;
 
-async function getQueueCounts(channels) {
+function seedPostIdsByPlatform(state) {
+  const seeds = new Map();
+  for (const entry of Object.values(state.pages ?? {})) {
+    for (const job of Object.values(entry.jobs ?? {})) {
+      if (job.platform && job.postId && !seeds.has(job.platform)) seeds.set(job.platform, job.postId);
+    }
+  }
+  return seeds;
+}
+
+async function getQueueCounts(channels, state) {
   const counts = new Map(channels.map(({ channelId }) => [channelId, 0]));
-  const account = await bufferRequest(GET_ACCOUNT_ORGANIZATIONS, {});
-  for (const organization of account.account.organizations ?? []) {
-    const data = await bufferRequest(GET_SCHEDULED_POSTS, { organizationId: organization.id });
+  const organizationIds = new Set(splitLines(process.env.BUFFER_ORGANIZATION_IDS || ""));
+  if (!organizationIds.size) {
+    const seeds = seedPostIdsByPlatform(state);
+    for (const { platform } of channels) {
+      const postId = seeds.get(platform);
+      if (!postId) throw new Error(`Impossibile determinare l'organizzazione Buffer per ${platform}: nessun post noto nello stato`);
+      const data = await bufferRequest(GET_POST_ORGANIZATION, { input: { id: postId } });
+      organizationIds.add(data.post.channel.organizationId);
+    }
+  }
+  for (const organizationId of organizationIds) {
+    const data = await bufferRequest(GET_SCHEDULED_POSTS, { organizationId });
     for (const { node } of data.posts.edges ?? []) {
       if (counts.has(node.channelId)) counts.set(node.channelId, counts.get(node.channelId) + 1);
     }
@@ -481,7 +500,8 @@ async function main() {
   }
   if (hasFlag("--report-queue")) {
     const channels = configuredChannels();
-    const counts = await getQueueCounts(channels);
+    const state = await readJson(statePath, { schemaVersion: 2, pages: {} });
+    const counts = await getQueueCounts(channels, state);
     const target = Number.parseInt(process.env.BUFFER_QUEUE_TARGET_PER_CHANNEL || String(DEFAULT_QUEUE_TARGET_PER_CHANNEL), 10);
     console.log(JSON.stringify({
       targetPerChannel: target,
@@ -543,7 +563,7 @@ async function main() {
         await reconcile(page, operations, state);
         summary.reconciled += 1;
       } else {
-        queueCounts ??= await getQueueCounts(channels);
+        queueCounts ??= await getQueueCounts(channels, state);
         if (!hasQueueCapacity(queueCounts, operations, knownRefs, queueTarget)) {
           summary.capacityDeferred += 1;
           console.log(`${page.key}: coda Buffer piena rispetto alla soglia ${queueTarget}; contenuto lasciato in Notion per il prossimo passaggio.`);
