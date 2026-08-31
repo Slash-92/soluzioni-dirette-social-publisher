@@ -390,7 +390,10 @@ async function reconcile(page, operations, state) {
   state.pages[page.id] = entry;
   const refs = parseBufferRefs(page.bufferRefs.length ? page.bufferRefs : entry.bufferRefs ?? []);
   const missing = operations.filter((operation) => !refs.has(operation.operationKey));
-  if (missing.length) throw new Error(`${page.title}: ID Buffer mancanti per ${missing.map((item) => item.operationKey).join(", ")}`);
+  if (missing.length) {
+    await createAndSchedule(page, operations, state);
+    return;
+  }
   const statuses = [];
   const publishedUrls = [];
   for (const operation of operations) {
