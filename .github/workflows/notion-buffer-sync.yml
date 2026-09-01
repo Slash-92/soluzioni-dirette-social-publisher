@@ -44,9 +44,6 @@ jobs:
       - name: Report Buffer configuration
         if: env.BUFFER_API_KEY == ''
         run: echo "::warning::BUFFER_API_KEY assente; i media possono essere preparati, ma le pubblicazioni Buffer entreranno in Errore."
-      - name: Report free queue capacity
-        if: env.BUFFER_API_KEY != ''
-        run: node automation/notion-sync.mjs --report-queue
       - name: Sync approved Notion content
         run: node automation/notion-sync.mjs
       - name: Save approved public media
