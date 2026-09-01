@@ -532,7 +532,6 @@ async function main() {
       targetPerChannel: target,
       channels: channels.map(({ platform, channelId }) => ({
         platform,
-        channelId,
         scheduled: counts.get(channelId) ?? 0,
         availableWithinTarget: Math.max(0, target - (counts.get(channelId) ?? 0)),
       })),
