@@ -205,7 +205,7 @@ test("un contenuto approvato senza file Media non genera cartelle GitHub vuote",
   assert.equal(isEligibleSyncPage(parsed), false);
 });
 
-test("GitHub conserva SVG e PNG ma soltanto i formati social entrano negli URL Buffer", () => {
+test("GitHub pubblica soltanto formati social e rifiuta gli SVG modificabili", () => {
   assert.equal(isPublishableMediaFile("slide-01.svg"), false);
   assert.equal(isPublishableMediaFile("slide-01.png"), true);
   assert.equal(isPublishableMediaFile("foto.JPG"), true);

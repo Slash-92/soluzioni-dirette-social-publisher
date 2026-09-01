@@ -334,21 +334,29 @@ const GET_POST = `query GetPost($input: PostInput!) { post(input: $input) { id s
 const GET_POST_ORGANIZATION = `query PostOrganization($input: PostInput!) { post(input: $input) { channel { id organizationId } } }`;
 const GET_SCHEDULED_POSTS = `query ScheduledPosts($organizationId: OrganizationId!) { posts(first: 100, input: { organizationId: $organizationId, filter: { status: [scheduled] } }) { edges { node { id channelId status } } } }`;
 
-function seedPostIdsByPlatform(state) {
+function seedPostIdsByPlatform(state, pages = []) {
   const seeds = new Map();
   for (const entry of Object.values(state.pages ?? {})) {
     for (const job of Object.values(entry.jobs ?? {})) {
       if (job.platform && job.postId && !seeds.has(job.platform)) seeds.set(job.platform, job.postId);
     }
   }
+  for (const page of pages) {
+    for (const [operationKey, postId] of parseBufferRefs(page.bufferRefs ?? [])) {
+      const platform = operationKey.split(":", 1)[0];
+      if (["instagram", "facebook"].includes(platform) && postId && !seeds.has(platform)) {
+        seeds.set(platform, postId);
+      }
+    }
+  }
   return seeds;
 }
 
-async function getQueueCounts(channels, state) {
+async function getQueueCounts(channels, state, pages = []) {
   const counts = new Map(channels.map(({ channelId }) => [channelId, 0]));
   const organizationIds = new Set(splitLines(process.env.BUFFER_ORGANIZATION_IDS || ""));
   if (!organizationIds.size) {
-    const seeds = seedPostIdsByPlatform(state);
+    const seeds = seedPostIdsByPlatform(state, pages);
     for (const { platform } of channels) {
       const postId = seeds.get(platform);
       if (!postId) throw new Error(`Impossibile determinare l'organizzazione Buffer per ${platform}: nessun post noto nello stato`);
@@ -396,14 +404,13 @@ async function prepareMedia(page) {
   await mkdir(targetDir, { recursive: true });
   const publicUrls = [];
   for (const file of page.mediaFiles) {
+    if (!isPublishableMediaFile(file.name)) continue;
     const response = await fetch(file.url, { redirect: "follow" });
     if (!response.ok) throw new Error(`Download asset fallito (${response.status}): ${file.name}`);
     await writeFile(path.join(targetDir, file.name), new Uint8Array(await response.arrayBuffer()));
-    if (isPublishableMediaFile(file.name)) {
-      publicUrls.push(`${baseUrl}/notion/${encodeURIComponent(safeKey)}/${encodeURIComponent(file.name)}`);
-    }
+    publicUrls.push(`${baseUrl}/notion/${encodeURIComponent(safeKey)}/${encodeURIComponent(file.name)}`);
   }
-  if (!publicUrls.length) throw new Error(`${page.title}: allegare almeno un PNG, JPG o video compatibile oltre agli SVG`);
+  if (!publicUrls.length) throw new Error(`${page.title}: allegare almeno un PNG, JPG o video compatibile`);
   await updateNotion(page.id, { publicUrls, error: "", syncedAt: new Date().toISOString() });
 }
 
@@ -516,7 +523,8 @@ async function main() {
   if (hasFlag("--report-queue")) {
     const channels = configuredChannels();
     const state = await readJson(statePath, { schemaVersion: 2, pages: {} });
-    const counts = await getQueueCounts(channels, state);
+    const pages = await queryNotionPages();
+    const counts = await getQueueCounts(channels, state, pages);
     const target = Number.parseInt(process.env.BUFFER_QUEUE_TARGET_PER_CHANNEL || String(DEFAULT_QUEUE_TARGET_PER_CHANNEL), 10);
     console.log(JSON.stringify({
       targetPerChannel: target,
@@ -580,7 +588,7 @@ async function main() {
         await reconcile(page, operations, state);
         summary.reconciled += 1;
       } else {
-        queueCounts ??= await getQueueCounts(channels, state);
+        queueCounts ??= await getQueueCounts(channels, state, pages);
         if (!hasQueueCapacity(queueCounts, operations, knownRefs, queueTarget)) {
           summary.capacityDeferred += 1;
           console.log(`${page.key}: coda Buffer piena rispetto alla soglia ${queueTarget}; contenuto lasciato in Notion per il prossimo passaggio.`);

@@ -1,7 +1,9 @@
 # Soluzioni Dirette — automazione Notion → Buffer
 
-Questa cartella è la root del repository pubblico separato che ospita solo i
-media approvati e il motore di pubblicazione di Soluzioni Dirette.
+Questa cartella è la root del repository pubblico separato che ospita i media
+approvati e il motore di pubblicazione di Soluzioni Dirette. GitHub Pages
+pubblica esclusivamente l'artefatto `public` generato dal workflow: codice,
+configurazione e stato operativo non entrano nel sito pubblico.
 
 Il workflow principale è `.github/workflows/notion-buffer-sync.yml`. Legge il
 database Notion dedicato, scarica gli allegati approvati, li espone tramite
@@ -17,7 +19,7 @@ su GitHub Pages quando sono vere queste condizioni:
 
 - `Brand` uguale a `Soluzioni Dirette`;
 - `Grafica pronta`, `Caption pronta` e `Pronto per pubblicazione` selezionati;
-- file SVG/PNG allegati nella proprietà `Media`;
+- file PNG/JPG/video allegati nella proprietà `Media`;
 - `URL media pubblici` ancora vuoto.
 
 Per questa fase non servono ancora data, canali o stato `Da programmare`. Il
@@ -26,10 +28,9 @@ file, li salva in `media/notion`, esegue il commit automatico e scrive in Notion
 gli URL pubblici generati da GitHub Pages. Il Mac personale non deve essere
 acceso.
 
-SVG e PNG vengono entrambi conservati nel repository. Negli `URL media
-pubblici` destinati a Buffer entrano però soltanto PNG, JPG e video compatibili:
-gli SVG restano disponibili per la revisione e le modifiche, ma non vengono
-inviati ai social.
+Soltanto PNG, JPG e video compatibili vengono copiati nel repository e negli
+`URL media pubblici`. Gli SVG modificabili restano fuori dal repository
+pubblico e non vengono inviati ai social.
 
 ### 2. GitHub Pages → Buffer
 
@@ -51,8 +52,11 @@ carosello occupa uno slot per canale; una Story occupa uno slot per ciascun
 frame. Se l'intero contenuto non entra su tutti i canali selezionati, resta in
 Notion con stato `Da programmare` e viene riprovato al passaggio successivo.
 
-Non aggiungere credenziali ai file. Le chiavi restano esclusivamente nei GitHub
-Actions Secrets. `.env` è riservato a eventuali test locali ed è escluso da Git.
+Non aggiungere credenziali o stato operativo ai file. Le chiavi restano nei
+GitHub Actions Secrets; gli ID di configurazione nelle GitHub Actions Variables.
+Lo stato temporaneo viene ricostruito da Notion a ogni esecuzione e scritto
+soltanto nella cartella temporanea del runner. `.env` è riservato a eventuali
+test locali ed è escluso da Git.
 
 La fase Buffer viene eseguita automaticamente una volta al giorno alle 07:15,
 fuso `Europe/Rome`, ed è disponibile anche manualmente. Prima di creare una

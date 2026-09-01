@@ -19,19 +19,20 @@ jobs:
     timeout-minutes: 15
     env:
       NOTION_API_TOKEN: ${{ secrets.NOTION_API_TOKEN }}
-      NOTION_DATA_SOURCE_ID: cea1e2e8-81ce-4733-a556-f4233df5d2b6
+      NOTION_DATA_SOURCE_ID: ${{ vars.NOTION_DATA_SOURCE_ID }}
       BUFFER_API_KEY: ${{ secrets.BUFFER_API_KEY }}
-      BUFFER_INSTAGRAM_CHANNEL_ID: 6a943748065799be46542c4d
-      BUFFER_FACEBOOK_CHANNEL_ID: 6a9443f6065799be465481e8
+      BUFFER_INSTAGRAM_CHANNEL_ID: ${{ vars.BUFFER_INSTAGRAM_CHANNEL_ID }}
+      BUFFER_FACEBOOK_CHANNEL_ID: ${{ vars.BUFFER_FACEBOOK_CHANNEL_ID }}
       BUFFER_SCHEDULE_HORIZON_DAYS: 10
       BUFFER_QUEUE_TARGET_PER_CHANNEL: 9
       PUBLIC_MEDIA_BASE_URL: https://slash-92.github.io/soluzioni-dirette-social-publisher/media
+      NOTION_SYNC_STATE_PATH: ${{ runner.temp }}/notion-sync-state.json
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: main
           fetch-depth: 0
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 24
           package-manager-cache: false
@@ -49,10 +50,9 @@ jobs:
         run: node automation/notion-sync.mjs --report-queue
       - name: Sync approved Notion content
         run: node automation/notion-sync.mjs
-      - name: Save media and idempotency state
+      - name: Save approved public media
         if: always()
         run: |
-          git add -- automation/notion-sync-state.json
           if [ -d media/notion ]; then
             git add -- media/notion
           fi
