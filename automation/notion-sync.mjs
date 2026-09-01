@@ -80,6 +80,7 @@ function propertyFile(file, index) {
 export function parseNotionPage(page) {
   const properties = page.properties ?? {};
   const format = properties.Formato?.multi_select?.[0]?.name ?? properties.Formato?.select?.name ?? "";
+  const note = richTextValue(properties.Note);
   return {
     id: page.id,
     url: page.url,
@@ -97,6 +98,7 @@ export function parseNotionPage(page) {
     publicUrls: splitLines(richTextValue(properties["URL media pubblici"])),
     mediaFiles: (properties.Media?.files ?? []).map(propertyFile).filter(Boolean),
     channels: (properties.Canali?.multi_select ?? []).map((item) => item.name.toLowerCase()),
+    schedulingType: /\[BUFFER_NOTIFY_ME\]/i.test(note) ? "notification" : "automatic",
   };
 }
 
@@ -165,6 +167,7 @@ export function buildOperations(page, channels = configuredChannels()) {
       ...job,
       platform,
       channelId,
+      schedulingType: page.schedulingType ?? "automatic",
       operationKey: `${platform}:${index + 1}`,
     })));
   if (!operations.length) throw new Error(`${page.title}: nessun canale Buffer valido selezionato`);
@@ -190,7 +193,7 @@ export function buildBufferInput(job, channelId, saveToDraft = true) {
   return {
     text: job.caption ?? "",
     channelId,
-    schedulingType: "automatic",
+    schedulingType: job.schedulingType ?? "automatic",
     mode: "customScheduled",
     dueAt: job.dueAt,
     saveToDraft,

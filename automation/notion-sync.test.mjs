@@ -41,6 +41,7 @@ function pageFixture(overrides = {}) {
       "Caption pronta": { type: "checkbox", checkbox: true },
       Formato: { type: "multi_select", multi_select: [{ name: "Carosello" }] },
       Caption: richText("Caption"),
+      Note: richText(""),
       Data: { type: "date", date: { start: "2026-09-10T11:00:00+02:00" } },
       "Chiave automazione": richText("test-key"),
       "Buffer IDs": richText(""),
@@ -122,6 +123,15 @@ test("le Stories diventano operazioni separate a un minuto di distanza", () => {
   assert.equal(jobs.length, 2);
   assert.equal(Date.parse(jobs[1].dueAt) - Date.parse(jobs[0].dueAt), 60_000);
   assert.equal(jobs[0].caption, "");
+});
+
+test("una Story marcata Notify Me viene preparata come notifica Buffer", () => {
+  const parsed = parseNotionPage(pageFixture({
+    Formato: { type: "multi_select", multi_select: [{ name: "Story" }] },
+    Note: richText("[BUFFER_NOTIFY_ME] Aggiungere musica Instagram prima della pubblicazione"),
+  }));
+  const [operation] = buildOperations(parsed, [{ platform: "instagram", channelId: "ig-id" }]);
+  assert.equal(buildBufferInput(operation, operation.channelId).schedulingType, "notification");
 });
 
 test("post, caroselli e Reel richiedono una caption", () => {
