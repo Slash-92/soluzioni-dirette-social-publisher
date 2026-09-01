@@ -15,7 +15,9 @@ const scriptDir = import.meta.dirname;
 const repoRoot = path.resolve(scriptDir, "..");
 const statePath = process.env.NOTION_SYNC_STATE_PATH
   ? path.resolve(process.env.NOTION_SYNC_STATE_PATH)
-  : path.join(scriptDir, "notion-sync-state.json");
+  : process.env.RUNNER_TEMP
+    ? path.join(process.env.RUNNER_TEMP, "notion-sync-state.json")
+    : path.join(scriptDir, "notion-sync-state.json");
 
 export function isManageableBufferStatus(status) {
   return MANAGEABLE_BUFFER_STATUSES.has(status);

@@ -26,7 +26,6 @@ jobs:
       BUFFER_SCHEDULE_HORIZON_DAYS: 10
       BUFFER_QUEUE_TARGET_PER_CHANNEL: 9
       PUBLIC_MEDIA_BASE_URL: https://slash-92.github.io/soluzioni-dirette-social-publisher/media
-      NOTION_SYNC_STATE_PATH: ${{ runner.temp }}/notion-sync-state.json
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
